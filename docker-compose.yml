@@ -1,0 +1,16 @@
+version: '3.8'
+services:
+  postgres:
+    image: postgres:16
+    container_name: verticallog_db
+    environment:
+      POSTGRES_USER: verticallog
+      POSTGRES_PASSWORD: verticallog_pass
+      POSTGRES_DB: verticallog
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backend/src/migrations/init.sql:/docker-entrypoint-initdb.d/init.sql
+volumes:
+  postgres_data:
