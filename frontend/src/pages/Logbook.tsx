@@ -10,7 +10,7 @@ import {
   Legend,
 } from 'chart.js';
 import { Bar, Doughnut } from 'react-chartjs-2';
-import { getLogbook, addLogbookEntry, updateLogbookEntry, deleteLogbookEntry, getStats, getSites } from '../api';
+import { getLogbook, addLogbookEntry, updateLogbookEntry, deleteLogbookEntry, getStats, getSites, getRoutesForSite } from '../api';
 import StarRating from '../components/StarRating';
 import type { LogbookEntry, Stats, Site, ClimbingRoute } from '../types';
 
@@ -67,11 +67,13 @@ export default function Logbook() {
 
   useEffect(() => {
     if (selectedSite) {
-      const site = sites.find((s) => s.id === Number(selectedSite));
-      setRoutes(site?.climbing_routes || []);
+      setRoutes([]);
       setSelectedRoute('');
+      getRoutesForSite(Number(selectedSite))
+        .then((res) => setRoutes(res.data))
+        .catch(console.error);
     }
-  }, [selectedSite, sites]);
+  }, [selectedSite]);
 
   const handleAdd = async () => {
     if (!selectedRoute || !addDate) {
