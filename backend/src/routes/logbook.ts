@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import pool from '../db';
+import prisma from '../db';
 import { authenticateToken } from '../middleware/auth';
 
 const router = Router();
@@ -9,66 +9,47 @@ router.get('/stats', authenticateToken, async (req: Request, res: Response): Pro
   const userId = req.user!.id;
 
   try {
-    // Ascensions per month (last 12 months)
-    const monthlyResult = await pool.query(
-      `SELECT
-        TO_CHAR(date, 'YYYY-MM') as month,
-        COUNT(*) as count
-       FROM logbook
-       WHERE user_id = $1
-         AND date >= NOW() - INTERVAL '12 months'
-       GROUP BY TO_CHAR(date, 'YYYY-MM')
-       ORDER BY month`,
-      [userId]
-    );
+    const monthly = await prisma.$queryRaw<Array<{ month: string; count: bigint }>>`
+      SELECT TO_CHAR(date, 'YYYY-MM') as month, COUNT(*) as count
+      FROM logbook
+      WHERE user_id = ${userId} AND date >= NOW() - INTERVAL '12 months'
+      GROUP BY TO_CHAR(date, 'YYYY-MM')
+      ORDER BY month`;
 
-    // Grade distribution
-    const gradeResult = await pool.query(
-      `SELECT cr.grade, COUNT(*) as count
-       FROM logbook l
-       JOIN climbing_routes cr ON l.route_id = cr.id
-       WHERE l.user_id = $1
-       GROUP BY cr.grade
-       ORDER BY cr.grade`,
-      [userId]
-    );
+    const grades = await prisma.$queryRaw<Array<{ grade: string; count: bigint }>>`
+      SELECT cr.grade, COUNT(*) as count
+      FROM logbook l
+      JOIN climbing_routes cr ON l.route_id = cr.id
+      WHERE l.user_id = ${userId}
+      GROUP BY cr.grade
+      ORDER BY cr.grade`;
 
-    // Total count
-    const totalResult = await pool.query(
-      'SELECT COUNT(*) as total FROM logbook WHERE user_id = $1',
-      [userId]
-    );
+    const total = await prisma.logbook.count({ where: { user_id: userId } });
 
-    // Hardest grade (simple lexicographic sort - works for French grades)
-    const hardestResult = await pool.query(
-      `SELECT cr.grade
-       FROM logbook l
-       JOIN climbing_routes cr ON l.route_id = cr.id
-       WHERE l.user_id = $1
-       ORDER BY cr.grade DESC
-       LIMIT 1`,
-      [userId]
-    );
+    const hardestRow = await prisma.$queryRaw<Array<{ grade: string }>>`
+      SELECT cr.grade
+      FROM logbook l
+      JOIN climbing_routes cr ON l.route_id = cr.id
+      WHERE l.user_id = ${userId}
+      ORDER BY cr.grade DESC
+      LIMIT 1`;
 
-    // Favorite site
-    const favSiteResult = await pool.query(
-      `SELECT s.name, COUNT(*) as count
-       FROM logbook l
-       JOIN climbing_routes cr ON l.route_id = cr.id
-       JOIN sites s ON cr.site_id = s.id
-       WHERE l.user_id = $1
-       GROUP BY s.name
-       ORDER BY count DESC
-       LIMIT 1`,
-      [userId]
-    );
+    const favSiteRow = await prisma.$queryRaw<Array<{ name: string; count: bigint }>>`
+      SELECT s.name, COUNT(*) as count
+      FROM logbook l
+      JOIN climbing_routes cr ON l.route_id = cr.id
+      JOIN sites s ON cr.site_id = s.id
+      WHERE l.user_id = ${userId}
+      GROUP BY s.name
+      ORDER BY count DESC
+      LIMIT 1`;
 
     res.json({
-      monthly: monthlyResult.rows,
-      grades: gradeResult.rows,
-      total: parseInt(totalResult.rows[0].total),
-      hardest_grade: hardestResult.rows[0]?.grade || null,
-      favorite_site: favSiteResult.rows[0]?.name || null,
+      monthly: monthly.map(r => ({ month: r.month, count: Number(r.count) })),
+      grades: grades.map(r => ({ grade: r.grade, count: Number(r.count) })),
+      total,
+      hardest_grade: hardestRow[0]?.grade || null,
+      favorite_site: favSiteRow[0]?.name || null,
     });
   } catch (err) {
     console.error(err);
@@ -81,28 +62,28 @@ router.get('/', authenticateToken, async (req: Request, res: Response): Promise<
   const userId = req.user!.id;
 
   try {
-    const result = await pool.query(
-      `SELECT
-        l.id,
-        l.date,
-        l.feeling,
-        l.comment,
-        l.created_at,
-        cr.id as route_id,
-        cr.name as route_name,
-        cr.grade,
-        cr.style,
-        s.id as site_id,
-        s.name as site_name,
-        s.type as site_type
-       FROM logbook l
-       JOIN climbing_routes cr ON l.route_id = cr.id
-       JOIN sites s ON cr.site_id = s.id
-       WHERE l.user_id = $1
-       ORDER BY l.date DESC, l.created_at DESC`,
-      [userId]
+    const entries = await prisma.logbook.findMany({
+      where: { user_id: userId },
+      include: { route: { include: { site: true } } },
+      orderBy: [{ date: 'desc' }, { created_at: 'desc' }],
+    });
+
+    res.json(
+      entries.map(({ route, ...l }) => ({
+        id: l.id,
+        date: (l.date as Date).toISOString().split('T')[0],
+        feeling: l.feeling,
+        comment: l.comment,
+        created_at: l.created_at,
+        route_id: route.id,
+        route_name: route.name,
+        grade: route.grade,
+        style: route.style,
+        site_id: route.site.id,
+        site_name: route.site.name,
+        site_type: route.site.type,
+      }))
     );
-    res.json(result.rows);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Internal server error' });
@@ -120,36 +101,26 @@ router.post('/', authenticateToken, async (req: Request, res: Response): Promise
   }
 
   try {
-    const result = await pool.query(
-      `INSERT INTO logbook (user_id, route_id, date, feeling, comment)
-       VALUES ($1, $2, $3, $4, $5)
-       RETURNING *`,
-      [userId, route_id, date, feeling, comment]
-    );
+    const entry = await prisma.logbook.create({
+      data: { user_id: userId, route_id: parseInt(route_id), date: new Date(date), feeling, comment },
+      include: { route: { include: { site: true } } },
+    });
 
-    // Return with route and site info
-    const full = await pool.query(
-      `SELECT
-        l.id,
-        l.date,
-        l.feeling,
-        l.comment,
-        l.created_at,
-        cr.id as route_id,
-        cr.name as route_name,
-        cr.grade,
-        cr.style,
-        s.id as site_id,
-        s.name as site_name,
-        s.type as site_type
-       FROM logbook l
-       JOIN climbing_routes cr ON l.route_id = cr.id
-       JOIN sites s ON cr.site_id = s.id
-       WHERE l.id = $1`,
-      [result.rows[0].id]
-    );
-
-    res.status(201).json(full.rows[0]);
+    const { route, ...l } = entry;
+    res.status(201).json({
+      id: l.id,
+      date: (l.date as Date).toISOString().split('T')[0],
+      feeling: l.feeling,
+      comment: l.comment,
+      created_at: l.created_at,
+      route_id: route.id,
+      route_name: route.name,
+      grade: route.grade,
+      style: route.style,
+      site_id: route.site.id,
+      site_name: route.site.name,
+      site_type: route.site.type,
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Internal server error' });
@@ -163,49 +134,43 @@ router.put('/:id', authenticateToken, async (req: Request, res: Response): Promi
   const { date, feeling, comment } = req.body;
 
   try {
-    const check = await pool.query('SELECT user_id FROM logbook WHERE id = $1', [id]);
+    const existing = await prisma.logbook.findUnique({ where: { id: parseInt(id) } });
 
-    if (check.rows.length === 0) {
+    if (!existing) {
       res.status(404).json({ error: 'Entry not found' });
       return;
     }
 
-    if (check.rows[0].user_id !== userId) {
+    if (existing.user_id !== userId) {
       res.status(403).json({ error: 'You can only edit your own entries' });
       return;
     }
 
-    await pool.query(
-      `UPDATE logbook
-       SET date = COALESCE($1, date),
-           feeling = COALESCE($2, feeling),
-           comment = COALESCE($3, comment)
-       WHERE id = $4`,
-      [date, feeling, comment, id]
-    );
+    const entry = await prisma.logbook.update({
+      where: { id: parseInt(id) },
+      data: {
+        ...(date !== undefined && { date: new Date(date) }),
+        ...(feeling !== undefined && { feeling }),
+        ...(comment !== undefined && { comment }),
+      },
+      include: { route: { include: { site: true } } },
+    });
 
-    const full = await pool.query(
-      `SELECT
-        l.id,
-        l.date,
-        l.feeling,
-        l.comment,
-        l.created_at,
-        cr.id as route_id,
-        cr.name as route_name,
-        cr.grade,
-        cr.style,
-        s.id as site_id,
-        s.name as site_name,
-        s.type as site_type
-       FROM logbook l
-       JOIN climbing_routes cr ON l.route_id = cr.id
-       JOIN sites s ON cr.site_id = s.id
-       WHERE l.id = $1`,
-      [id]
-    );
-
-    res.json(full.rows[0]);
+    const { route, ...l } = entry;
+    res.json({
+      id: l.id,
+      date: (l.date as Date).toISOString().split('T')[0],
+      feeling: l.feeling,
+      comment: l.comment,
+      created_at: l.created_at,
+      route_id: route.id,
+      route_name: route.name,
+      grade: route.grade,
+      style: route.style,
+      site_id: route.site.id,
+      site_name: route.site.name,
+      site_type: route.site.type,
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Internal server error' });
@@ -218,19 +183,19 @@ router.delete('/:id', authenticateToken, async (req: Request, res: Response): Pr
   const { id } = req.params;
 
   try {
-    const check = await pool.query('SELECT user_id FROM logbook WHERE id = $1', [id]);
+    const existing = await prisma.logbook.findUnique({ where: { id: parseInt(id) } });
 
-    if (check.rows.length === 0) {
+    if (!existing) {
       res.status(404).json({ error: 'Entry not found' });
       return;
     }
 
-    if (check.rows[0].user_id !== userId) {
+    if (existing.user_id !== userId) {
       res.status(403).json({ error: 'You can only delete your own entries' });
       return;
     }
 
-    await pool.query('DELETE FROM logbook WHERE id = $1', [id]);
+    await prisma.logbook.delete({ where: { id: parseInt(id) } });
     res.json({ message: 'Entry deleted successfully' });
   } catch (err) {
     console.error(err);

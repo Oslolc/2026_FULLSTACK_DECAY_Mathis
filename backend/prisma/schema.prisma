@@ -1,0 +1,67 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            Int       @id @default(autoincrement())
+  username      String    @unique @db.VarChar(50)
+  email         String    @unique @db.VarChar(255)
+  password_hash String    @db.VarChar(255)
+  role          String    @default("user") @db.VarChar(20)
+  created_at    DateTime  @default(now())
+  sites         Site[]
+  logbook       Logbook[]
+
+  @@map("users")
+}
+
+model Site {
+  id              Int             @id @default(autoincrement())
+  name            String          @db.VarChar(255)
+  type            String          @db.VarChar(20)
+  location        String          @db.VarChar(255)
+  description     String?
+  image_url       String?         @db.VarChar(500)
+  latitude        Decimal?        @db.Decimal(10, 7)
+  longitude       Decimal?        @db.Decimal(10, 7)
+  created_by      Int?
+  created_at      DateTime        @default(now())
+  user            User?           @relation(fields: [created_by], references: [id])
+  climbing_routes ClimbingRoute[]
+
+  @@map("sites")
+}
+
+model ClimbingRoute {
+  id          Int       @id @default(autoincrement())
+  site_id     Int
+  name        String    @db.VarChar(255)
+  grade       String    @db.VarChar(10)
+  style       String?   @db.VarChar(20)
+  description String?
+  video_url   String?   @db.VarChar(500)
+  created_at  DateTime  @default(now())
+  site        Site      @relation(fields: [site_id], references: [id], onDelete: Cascade)
+  logbook     Logbook[]
+
+  @@map("climbing_routes")
+}
+
+model Logbook {
+  id         Int           @id @default(autoincrement())
+  user_id    Int
+  route_id   Int
+  date       DateTime      @db.Date
+  feeling    Int?
+  comment    String?
+  created_at DateTime      @default(now())
+  user       User          @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  route      ClimbingRoute @relation(fields: [route_id], references: [id], onDelete: Cascade)
+
+  @@map("logbook")
+}

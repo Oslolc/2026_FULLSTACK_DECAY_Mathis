@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import pool from '../db';
+import prisma from '../db';
 import { authenticateToken, requireRole } from '../middleware/auth';
 
 const router = Router();
@@ -7,14 +7,21 @@ const router = Router();
 // GET /api/sites - list all sites (public)
 router.get('/', async (_req: Request, res: Response): Promise<void> => {
   try {
-    const result = await pool.query(
-      `SELECT s.*, u.username as created_by_username,
-        (SELECT COUNT(*) FROM climbing_routes cr WHERE cr.site_id = s.id) as route_count
-       FROM sites s
-       LEFT JOIN users u ON s.created_by = u.id
-       ORDER BY s.created_at DESC`
+    const sites = await prisma.site.findMany({
+      include: {
+        user: { select: { username: true } },
+        _count: { select: { climbing_routes: true } },
+      },
+      orderBy: { created_at: 'desc' },
+    });
+
+    res.json(
+      sites.map(({ user, _count, ...s }) => ({
+        ...s,
+        created_by_username: user?.username ?? null,
+        route_count: _count.climbing_routes,
+      }))
     );
-    res.json(result.rows);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Internal server error' });
@@ -26,28 +33,21 @@ router.get('/:id', async (req: Request, res: Response): Promise<void> => {
   const { id } = req.params;
 
   try {
-    const siteResult = await pool.query(
-      `SELECT s.*, u.username as created_by_username
-       FROM sites s
-       LEFT JOIN users u ON s.created_by = u.id
-       WHERE s.id = $1`,
-      [id]
-    );
+    const site = await prisma.site.findUnique({
+      where: { id: parseInt(id) },
+      include: {
+        user: { select: { username: true } },
+        climbing_routes: { orderBy: [{ grade: 'asc' }, { name: 'asc' }] },
+      },
+    });
 
-    if (siteResult.rows.length === 0) {
+    if (!site) {
       res.status(404).json({ error: 'Site not found' });
       return;
     }
 
-    const routesResult = await pool.query(
-      'SELECT * FROM climbing_routes WHERE site_id = $1 ORDER BY grade, name',
-      [id]
-    );
-
-    res.json({
-      ...siteResult.rows[0],
-      climbing_routes: routesResult.rows,
-    });
+    const { user, ...siteData } = site;
+    res.json({ ...siteData, created_by_username: user?.username ?? null });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Internal server error' });
@@ -68,13 +68,10 @@ router.post(
     }
 
     try {
-      const result = await pool.query(
-        `INSERT INTO sites (name, type, location, description, image_url, latitude, longitude, created_by)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-         RETURNING *`,
-        [name, type, location, description, image_url, latitude, longitude, req.user!.id]
-      );
-      res.status(201).json(result.rows[0]);
+      const site = await prisma.site.create({
+        data: { name, type, location, description, image_url, latitude, longitude, created_by: req.user!.id },
+      });
+      res.status(201).json(site);
     } catch (err) {
       console.error(err);
       res.status(500).json({ error: 'Internal server error' });
@@ -92,29 +89,27 @@ router.put(
     const { name, type, location, description, image_url, latitude, longitude } = req.body;
 
     try {
-      const result = await pool.query(
-        `UPDATE sites
-         SET name = COALESCE($1, name),
-             type = COALESCE($2, type),
-             location = COALESCE($3, location),
-             description = COALESCE($4, description),
-             image_url = COALESCE($5, image_url),
-             latitude = COALESCE($6, latitude),
-             longitude = COALESCE($7, longitude)
-         WHERE id = $8
-         RETURNING *`,
-        [name, type, location, description, image_url, latitude, longitude, id]
-      );
-
-      if (result.rows.length === 0) {
+      const site = await prisma.site.update({
+        where: { id: parseInt(id) },
+        data: {
+          ...(name !== undefined && { name }),
+          ...(type !== undefined && { type }),
+          ...(location !== undefined && { location }),
+          ...(description !== undefined && { description }),
+          ...(image_url !== undefined && { image_url }),
+          ...(latitude !== undefined && { latitude }),
+          ...(longitude !== undefined && { longitude }),
+        },
+      });
+      res.json(site);
+    } catch (err: unknown) {
+      const error = err as { code?: string };
+      if (error.code === 'P2025') {
         res.status(404).json({ error: 'Site not found' });
-        return;
+      } else {
+        console.error(err);
+        res.status(500).json({ error: 'Internal server error' });
       }
-
-      res.json(result.rows[0]);
-    } catch (err) {
-      console.error(err);
-      res.status(500).json({ error: 'Internal server error' });
     }
   }
 );
@@ -128,17 +123,16 @@ router.delete(
     const { id } = req.params;
 
     try {
-      const result = await pool.query('DELETE FROM sites WHERE id = $1 RETURNING id', [id]);
-
-      if (result.rows.length === 0) {
-        res.status(404).json({ error: 'Site not found' });
-        return;
-      }
-
+      await prisma.site.delete({ where: { id: parseInt(id) } });
       res.json({ message: 'Site deleted successfully' });
-    } catch (err) {
-      console.error(err);
-      res.status(500).json({ error: 'Internal server error' });
+    } catch (err: unknown) {
+      const error = err as { code?: string };
+      if (error.code === 'P2025') {
+        res.status(404).json({ error: 'Site not found' });
+      } else {
+        console.error(err);
+        res.status(500).json({ error: 'Internal server error' });
+      }
     }
   }
 );

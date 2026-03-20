@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import pool from '../db';
+import prisma from '../db';
 import { authenticateToken, requireRole } from '../middleware/auth';
 
 const router = Router();
@@ -9,11 +9,11 @@ router.get('/site/:siteId', async (req: Request, res: Response): Promise<void> =
   const { siteId } = req.params;
 
   try {
-    const result = await pool.query(
-      'SELECT * FROM climbing_routes WHERE site_id = $1 ORDER BY grade, name',
-      [siteId]
-    );
-    res.json(result.rows);
+    const routes = await prisma.climbingRoute.findMany({
+      where: { site_id: parseInt(siteId) },
+      orderBy: [{ grade: 'asc' }, { name: 'asc' }],
+    });
+    res.json(routes);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Internal server error' });
@@ -34,13 +34,10 @@ router.post(
     }
 
     try {
-      const result = await pool.query(
-        `INSERT INTO climbing_routes (site_id, name, grade, style, description, video_url)
-         VALUES ($1, $2, $3, $4, $5, $6)
-         RETURNING *`,
-        [site_id, name, grade, style, description, video_url]
-      );
-      res.status(201).json(result.rows[0]);
+      const route = await prisma.climbingRoute.create({
+        data: { site_id: parseInt(site_id), name, grade, style, description, video_url },
+      });
+      res.status(201).json(route);
     } catch (err) {
       console.error(err);
       res.status(500).json({ error: 'Internal server error' });
@@ -58,27 +55,25 @@ router.put(
     const { name, grade, style, description, video_url } = req.body;
 
     try {
-      const result = await pool.query(
-        `UPDATE climbing_routes
-         SET name = COALESCE($1, name),
-             grade = COALESCE($2, grade),
-             style = COALESCE($3, style),
-             description = COALESCE($4, description),
-             video_url = COALESCE($5, video_url)
-         WHERE id = $6
-         RETURNING *`,
-        [name, grade, style, description, video_url, id]
-      );
-
-      if (result.rows.length === 0) {
+      const route = await prisma.climbingRoute.update({
+        where: { id: parseInt(id) },
+        data: {
+          ...(name !== undefined && { name }),
+          ...(grade !== undefined && { grade }),
+          ...(style !== undefined && { style }),
+          ...(description !== undefined && { description }),
+          ...(video_url !== undefined && { video_url }),
+        },
+      });
+      res.json(route);
+    } catch (err: unknown) {
+      const error = err as { code?: string };
+      if (error.code === 'P2025') {
         res.status(404).json({ error: 'Route not found' });
-        return;
+      } else {
+        console.error(err);
+        res.status(500).json({ error: 'Internal server error' });
       }
-
-      res.json(result.rows[0]);
-    } catch (err) {
-      console.error(err);
-      res.status(500).json({ error: 'Internal server error' });
     }
   }
 );
@@ -92,20 +87,16 @@ router.delete(
     const { id } = req.params;
 
     try {
-      const result = await pool.query(
-        'DELETE FROM climbing_routes WHERE id = $1 RETURNING id',
-        [id]
-      );
-
-      if (result.rows.length === 0) {
-        res.status(404).json({ error: 'Route not found' });
-        return;
-      }
-
+      await prisma.climbingRoute.delete({ where: { id: parseInt(id) } });
       res.json({ message: 'Route deleted successfully' });
-    } catch (err) {
-      console.error(err);
-      res.status(500).json({ error: 'Internal server error' });
+    } catch (err: unknown) {
+      const error = err as { code?: string };
+      if (error.code === 'P2025') {
+        res.status(404).json({ error: 'Route not found' });
+      } else {
+        console.error(err);
+        res.status(500).json({ error: 'Internal server error' });
+      }
     }
   }
 );
