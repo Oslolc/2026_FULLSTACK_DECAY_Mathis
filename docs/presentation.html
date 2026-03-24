@@ -1,0 +1,662 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VerticalLog — Co-développement Human-AI</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --accent: #e94560;
+      --bg: #0f0f1a;
+      --bg2: #1a1a2e;
+      --text: #eaeaea;
+      --muted: #9ca3af;
+      --border: rgba(255,255,255,0.08);
+      --green: #22c55e;
+      --yellow: #eab308;
+      --red: #ef4444;
+    }
+
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    .deck {
+      width: 100%;
+      height: 100vh;
+      position: relative;
+    }
+
+    .slide {
+      display: none;
+      position: absolute;
+      inset: 0;
+      padding: 60px 80px;
+      flex-direction: column;
+      justify-content: center;
+      animation: fadeIn 0.3s ease;
+    }
+
+    .slide.active {
+      display: flex;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ── SLIDE 1 ── */
+    .slide-1 {
+      background: linear-gradient(135deg, var(--bg) 0%, #1a0a14 100%);
+      align-items: center;
+      text-align: center;
+    }
+
+    .slide-1 .tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(233,69,96,0.12);
+      border: 1px solid rgba(233,69,96,0.3);
+      border-radius: 20px;
+      padding: 6px 20px;
+      font-size: 0.85rem;
+      color: var(--accent);
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      margin-bottom: 32px;
+    }
+
+    .slide-1 h1 {
+      font-size: clamp(2rem, 4vw, 3.5rem);
+      font-weight: 900;
+      line-height: 1.15;
+      background: linear-gradient(135deg, #fff 0%, var(--accent) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 24px;
+    }
+
+    .slide-1 .subtitle {
+      font-size: 1.15rem;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+
+    .slide-1 .meta {
+      font-size: 0.95rem;
+      color: rgba(156,163,175,0.6);
+    }
+
+    .slide-1 .deco {
+      position: absolute;
+      font-size: 18rem;
+      opacity: 0.03;
+      right: -40px;
+      bottom: -40px;
+      line-height: 1;
+      pointer-events: none;
+    }
+
+    /* ── GENERIC ── */
+    .slide-title {
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: var(--accent);
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      margin-bottom: 36px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .slide-title::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+    }
+
+    .slide-num {
+      position: absolute;
+      bottom: 28px;
+      right: 40px;
+      font-size: 0.8rem;
+      color: var(--muted);
+      opacity: 0.5;
+    }
+
+    h2 {
+      font-size: clamp(1.6rem, 2.5vw, 2.2rem);
+      font-weight: 800;
+      margin-bottom: 32px;
+      line-height: 1.2;
+    }
+
+    /* ── CARDS GRID ── */
+    .cards {
+      display: grid;
+      gap: 16px;
+    }
+
+    .cards.cols-2 { grid-template-columns: 1fr 1fr; }
+    .cards.cols-3 { grid-template-columns: 1fr 1fr 1fr; }
+
+    .card {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 24px;
+    }
+
+    .card .card-title {
+      font-size: 0.8rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 14px;
+    }
+
+    .card ul {
+      list-style: none;
+    }
+
+    .card ul li {
+      color: var(--muted);
+      font-size: 0.92rem;
+      line-height: 1.7;
+      padding-left: 16px;
+      position: relative;
+    }
+
+    .card ul li::before {
+      content: '–';
+      position: absolute;
+      left: 0;
+      color: var(--accent);
+    }
+
+    .card ul li strong {
+      color: var(--text);
+      font-weight: 600;
+    }
+
+    /* ── TABLE ── */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.92rem;
+    }
+
+    th {
+      text-align: left;
+      padding: 10px 16px;
+      background: rgba(233,69,96,0.08);
+      color: var(--accent);
+      font-size: 0.8rem;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      border-bottom: 1px solid var(--border);
+    }
+
+    td {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
+    td:first-child {
+      color: var(--text);
+      font-weight: 500;
+    }
+
+    tr:last-child td { border-bottom: none; }
+
+    /* ── TIMELINE ── */
+    .timeline {
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+    }
+
+    .tl-item {
+      display: flex;
+      gap: 24px;
+      align-items: flex-start;
+    }
+
+    .tl-left {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      width: 36px;
+      flex-shrink: 0;
+    }
+
+    .tl-dot {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: rgba(233,69,96,0.15);
+      border: 2px solid var(--accent);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.8rem;
+      font-weight: 800;
+      color: var(--accent);
+      flex-shrink: 0;
+    }
+
+    .tl-line {
+      width: 2px;
+      flex: 1;
+      min-height: 24px;
+      background: var(--border);
+      margin: 4px 0;
+    }
+
+    .tl-content {
+      padding: 4px 0 24px;
+    }
+
+    .tl-content .who {
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 4px;
+    }
+
+    .tl-content .who.human { color: #60a5fa; }
+    .tl-content .who.ai { color: var(--accent); }
+
+    .tl-content p {
+      font-size: 0.9rem;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
+    .tl-content p strong { color: var(--text); }
+
+    /* ── ASSESSMENT ── */
+    .assessment {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+
+    .assess-card {
+      background: var(--bg2);
+      border-radius: 12px;
+      padding: 24px;
+    }
+
+    .assess-card.pros { border-top: 3px solid var(--green); }
+    .assess-card.cons { border-top: 3px solid var(--red); }
+
+    .assess-card h3 {
+      font-size: 0.85rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      margin-bottom: 16px;
+    }
+
+    .assess-card.pros h3 { color: var(--green); }
+    .assess-card.cons h3 { color: var(--red); }
+
+    .assess-card ul {
+      list-style: none;
+    }
+
+    .assess-card ul li {
+      font-size: 0.9rem;
+      color: var(--muted);
+      line-height: 1.7;
+      padding-left: 20px;
+      position: relative;
+    }
+
+    .assess-card.pros ul li::before { content: '+'; position: absolute; left: 0; color: var(--green); font-weight: 700; }
+    .assess-card.cons ul li::before { content: '–'; position: absolute; left: 0; color: var(--red); font-weight: 700; }
+
+    .assess-card ul li strong { color: var(--text); font-weight: 600; }
+
+    /* ── CONCLUSION ── */
+    .slide-conclusion {
+      background: linear-gradient(135deg, var(--bg) 0%, #0d0d1f 100%);
+      align-items: center;
+      text-align: center;
+    }
+
+    .quote {
+      font-size: clamp(1.2rem, 2vw, 1.6rem);
+      font-style: italic;
+      color: var(--text);
+      line-height: 1.6;
+      max-width: 700px;
+      margin-bottom: 48px;
+      position: relative;
+    }
+
+    .quote::before {
+      content: '"';
+      font-size: 5rem;
+      color: var(--accent);
+      opacity: 0.3;
+      position: absolute;
+      top: -20px;
+      left: -30px;
+      font-style: normal;
+      line-height: 1;
+    }
+
+    .pills {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    .pill {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 8px 20px;
+      font-size: 0.875rem;
+      color: var(--muted);
+    }
+
+    .pill span {
+      color: var(--accent);
+      font-weight: 700;
+    }
+
+    /* ── NAV ── */
+    .nav {
+      position: fixed;
+      bottom: 28px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      background: rgba(26,26,46,0.9);
+      border: 1px solid var(--border);
+      border-radius: 30px;
+      padding: 10px 20px;
+      backdrop-filter: blur(12px);
+      z-index: 100;
+    }
+
+    .nav button {
+      background: none;
+      border: none;
+      color: var(--muted);
+      font-size: 1.1rem;
+      cursor: pointer;
+      padding: 4px 10px;
+      border-radius: 6px;
+      transition: all 0.15s;
+    }
+
+    .nav button:hover { background: rgba(255,255,255,0.06); color: var(--text); }
+    .nav button:disabled { opacity: 0.2; cursor: default; }
+
+    .nav .counter {
+      font-size: 0.8rem;
+      color: var(--muted);
+      min-width: 50px;
+      text-align: center;
+    }
+
+    .nav .dots {
+      display: flex;
+      gap: 6px;
+    }
+
+    .nav .dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--border);
+      transition: background 0.2s;
+    }
+
+    .nav .dot.active {
+      background: var(--accent);
+      width: 18px;
+      border-radius: 3px;
+    }
+
+    /* code inline */
+    code {
+      background: rgba(233,69,96,0.1);
+      border: 1px solid rgba(233,69,96,0.2);
+      border-radius: 4px;
+      padding: 2px 8px;
+      font-family: 'Cascadia Code', 'Fira Code', monospace;
+      font-size: 0.85em;
+      color: #f9a8b8;
+    }
+
+    .highlight {
+      color: var(--accent);
+      font-weight: 700;
+    }
+  </style>
+</head>
+<body>
+
+<div class="deck" id="deck">
+
+  <!-- SLIDE 1 : Titre -->
+  <div class="slide slide-1 active">
+    <div class="tag">Fullstack Web 2026 — Presentation orale</div>
+    <h1>VerticalLog<br/>Co-developpement<br/>Human-AI</h1>
+    <p class="subtitle">Stratégie, outils et bilan critique</p>
+    <p class="meta">DECAY Mathis &nbsp;·&nbsp;25 Mars 2026</p>
+    <div class="deco">⛰</div>
+    <span class="slide-num">1 / 6</span>
+  </div>
+
+  <!-- SLIDE 2 : Outil & Setup -->
+  <div class="slide">
+    <div class="slide-title">Outil & Setup</div>
+    <h2>Claude Code — agent IA dans VS Code</h2>
+    <div class="cards cols-2">
+      <div class="card">
+        <div class="card-title">L'outil</div>
+        <ul>
+          <li><strong>Claude Code</strong> (Anthropic) intégré dans VS Code</li>
+          <li>Accès complet au projet : lecture, écriture, terminal</li>
+          <li>Peut lire, modifier et committer du code</li>
+          <li>Comprend le contexte de tout le projet</li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="card-title">Setup mis en place</div>
+        <ul>
+          <li><code>CLAUDE.md</code> — contexte projet (stack, commandes, architecture, roles)</li>
+          <li>Permissions configurées : git, npm, docker</li>
+          <li>Modèle : Claude Sonnet 4.6</li>
+        </ul>
+      </div>
+    </div>
+    <span class="slide-num">2 / 5</span>
+  </div>
+
+  <!-- SLIDE 3 : Strategie -->
+  <div class="slide">
+    <div class="slide-title">Stratégie</div>
+    <h2>Humain = architecte &nbsp;/&nbsp; IA = exécutant</h2>
+    <div style="background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; margin-bottom: 24px;">
+      <table>
+        <thead>
+          <tr>
+            <th>Contribution humaine</th>
+            <th>Contribution IA</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Definir les features a implémenter</td>
+            <td>Lire et comprendre le code existant</td>
+          </tr>
+          <tr>
+            <td>Valider ou refuser les choix techniques</td>
+            <td>Implémenter les changements</td>
+          </tr>
+          <tr>
+            <td>Détecter les incohérences</td>
+            <td>Debugger et expliquer les bugs</td>
+          </tr>
+          <tr>
+            <td>Décider des technologies (React 19, Prisma...)</td>
+            <td>Gérer les commits et le depot git</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <span class="slide-num">3 / 5</span>
+  </div>
+
+  <!-- SLIDE 4 : Exemple concret -->
+  <div class="slide">
+    <div class="slide-title">Exemple concret</div>
+    <h2>Bug : compte admin inaccessible</h2>
+    <div class="timeline">
+      <div class="tl-item">
+        <div class="tl-left">
+          <div class="tl-dot">1</div>
+          <div class="tl-line"></div>
+        </div>
+        <div class="tl-content">
+          <div class="who human">Humain</div>
+          <p>Signale le bug : <strong>"Invalid credentials"</strong> sur admin@verticallog.fr / admin123</p>
+        </div>
+      </div>
+      <div class="tl-item">
+        <div class="tl-left">
+          <div class="tl-dot">2</div>
+          <div class="tl-line"></div>
+        </div>
+        <div class="tl-content">
+          <div class="who ai">IA</div>
+          <p>Explore les fichiers auth. Identifie que le hash bcrypt dans <code>init.sql</code> est invalide pour le mot de passe <code>admin123</code></p>
+        </div>
+      </div>
+      <div class="tl-item">
+        <div class="tl-left">
+          <div class="tl-dot">3</div>
+          <div class="tl-line"></div>
+        </div>
+        <div class="tl-content">
+          <div class="who ai">IA</div>
+          <p>Génère un nouveau hash via Node.js, corrige <code>init.sql</code>, met a jour la base de données directement</p>
+        </div>
+      </div>
+      <div class="tl-item">
+        <div class="tl-left">
+          <div class="tl-dot">4</div>
+        </div>
+        <div class="tl-content">
+          <div class="who ai">Résultat</div>
+          <p><strong style="color: var(--green);">bug resolu en ~2 minutes</strong></p>
+        </div>
+      </div>
+    </div>
+    <span class="slide-num">4 / 5</span>
+  </div>
+
+  <!-- SLIDE 5 : Evaluation critique -->
+  <div class="slide">
+    <div class="slide-title">Evaluation critique</div>
+    <h2>Bilan quantitatif & qualitatif</h2>
+    <div class="assessment">
+      <div class="assess-card pros">
+        <h3>Points forts</h3>
+        <ul>
+          <li><strong>Productivité élevée</strong> sur les tâches répetitives (CRUD, types TypeScript)</li>
+          <li><strong>CLAUDE.md</strong> évite de ré-expliquer l'architecture à chaque session</li>
+          <li>Gestion git intégrée : commits clairs</li>
+          <li>Explique ses choix techniques en temps reel</li>
+        </ul>
+      </div>
+      <div class="assess-card cons">
+        <h3>Limites</h3>
+        <ul>
+          <li>Ne peut pas <strong>tester visuellement</strong> l'interface utilisateur</li>
+          <li>Génère parfois plus de code que nécessaire — supervision requise</li>
+          <li>Contexte perdu si le CLAUDE.md est absent ou incomplet</li>
+          <li>La <strong>décision finale</strong> reste toujours côté humain</li>
+          <li>Nécessite de savoir ce qu'on veut pour être efficace</li>
+        </ul>
+      </div>
+    </div>
+    <span class="slide-num">5 / 5</span>
+  </div>
+
+
+</div>
+
+<!-- Navigation -->
+<div class="nav">
+  <button id="prev" disabled>&#8592;</button>
+  <div class="dots" id="dots"></div>
+  <span class="counter" id="counter">1 / 5</span>
+  <button id="next">&#8594;</button>
+</div>
+
+<script>
+  const slides = document.querySelectorAll('.slide');
+  const total = slides.length;
+  let current = 0;
+
+  const dotsEl = document.getElementById('dots');
+  const counter = document.getElementById('counter');
+  const prev = document.getElementById('prev');
+  const next = document.getElementById('next');
+
+  // Build dots
+  for (let i = 0; i < total; i++) {
+    const d = document.createElement('div');
+    d.className = 'dot' + (i === 0 ? ' active' : '');
+    d.addEventListener('click', () => goTo(i));
+    dotsEl.appendChild(d);
+  }
+
+  function goTo(n) {
+    slides[current].classList.remove('active');
+    dotsEl.children[current].classList.remove('active');
+    current = n;
+    slides[current].classList.add('active');
+    dotsEl.children[current].classList.add('active');
+    counter.textContent = (current + 1) + ' / ' + total;
+    prev.disabled = current === 0;
+    next.disabled = current === total - 1;
+  }
+
+  prev.addEventListener('click', () => { if (current > 0) goTo(current - 1); });
+  next.addEventListener('click', () => { if (current < total - 1) goTo(current + 1); });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowRight' || e.key === ' ') { if (current < total - 1) goTo(current + 1); }
+    if (e.key === 'ArrowLeft') { if (current > 0) goTo(current - 1); }
+  });
+</script>
+</body>
+</html>
