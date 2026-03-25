@@ -170,7 +170,7 @@ export default function Logbook() {
     labels: stats?.grades.map((g) => g.grade) || [],
     datasets: [{
       data: stats?.grades.map((g) => Number(g.count)) || [],
-      backgroundColor: gradeColors.map((c) => c + '99'),
+      backgroundColor: gradeColors.map((c) => c.replace('hsl(', 'hsla(').replace(')', ', 0.85)')),
       borderColor: gradeColors,
       borderWidth: 2,
     }],
