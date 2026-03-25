@@ -1,0 +1,815 @@
+openapi: 3.0.3
+
+info:
+  title: VerticalLog API
+  description: >
+    API REST du carnet d'escalade numérique VerticalLog.
+    Authentification par JWT (Bearer token).
+    Trois niveaux de rôle : user (1), expert (2), admin (3) — hiérarchique.
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:3001/api
+    description: Développement local
+
+tags:
+  - name: Auth
+    description: Inscription, connexion, profil
+  - name: Sites
+    description: Sites d'escalade (Falaise, Bloc, Salle)
+  - name: Routes
+    description: Voies et blocs par site
+  - name: Logbook
+    description: Carnet personnel d'ascensions
+  - name: Health
+    description: Santé du serveur
+
+# ─────────────────────────────────────────────
+# SECURITY
+# ─────────────────────────────────────────────
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+
+    # ── Auth ──
+    RegisterRequest:
+      type: object
+      required: [username, email, password]
+      properties:
+        username:
+          type: string
+          minLength: 1
+          maxLength: 50
+          example: grimpeur42
+        email:
+          type: string
+          format: email
+          example: grimpeur42@example.com
+        password:
+          type: string
+          minLength: 6
+          example: motdepasse123
+
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+          example: admin@verticallog.fr
+        password:
+          type: string
+          example: admin123
+
+    AuthResponse:
+      type: object
+      properties:
+        token:
+          type: string
+          description: JWT valable 7 jours
+          example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+        user:
+          $ref: '#/components/schemas/User'
+
+    # ── User ──
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        username:
+          type: string
+          example: admin
+        email:
+          type: string
+          example: admin@verticallog.fr
+        role:
+          type: string
+          enum: [user, expert, admin]
+          example: admin
+        created_at:
+          type: string
+          format: date-time
+
+    # ── Site ──
+    Site:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        name:
+          type: string
+          example: Gorges du Verdon
+        type:
+          type: string
+          enum: [Falaise, Bloc, Salle]
+          example: Falaise
+        location:
+          type: string
+          example: Alpes-de-Haute-Provence, France
+        description:
+          type: string
+          nullable: true
+          example: Les Gorges du Verdon offrent un terrain d'escalade exceptionnel...
+        image_url:
+          type: string
+          nullable: true
+          example: https://images.unsplash.com/photo-xxx
+        latitude:
+          type: number
+          format: float
+          nullable: true
+          example: 43.7483
+        longitude:
+          type: number
+          format: float
+          nullable: true
+          example: 6.3453
+        created_by:
+          type: integer
+          nullable: true
+          example: 1
+        created_by_username:
+          type: string
+          nullable: true
+          example: admin
+        created_at:
+          type: string
+          format: date-time
+        route_count:
+          type: integer
+          description: Présent uniquement dans GET /sites (liste)
+          example: 3
+        climbing_routes:
+          type: array
+          description: Présent uniquement dans GET /sites/:id (détail)
+          items:
+            $ref: '#/components/schemas/ClimbingRoute'
+
+    SiteCreateRequest:
+      type: object
+      required: [name, type, location]
+      properties:
+        name:
+          type: string
+          example: Gorges du Verdon
+        type:
+          type: string
+          enum: [Falaise, Bloc, Salle]
+          example: Falaise
+        location:
+          type: string
+          example: Alpes-de-Haute-Provence, France
+        description:
+          type: string
+          example: Site exceptionnel...
+        image_url:
+          type: string
+          example: https://images.unsplash.com/photo-xxx
+        latitude:
+          type: number
+          example: 43.7483
+        longitude:
+          type: number
+          example: 6.3453
+
+    # ── Climbing Route ──
+    ClimbingRoute:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        site_id:
+          type: integer
+          example: 1
+        name:
+          type: string
+          example: La Grande Voie du Verdon
+        grade:
+          type: string
+          example: 6b+
+        style:
+          type: string
+          enum: [Voie, Boulder, Trad]
+          nullable: true
+          example: Voie
+        description:
+          type: string
+          nullable: true
+        video_url:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+
+    ClimbingRouteCreateRequest:
+      type: object
+      required: [site_id, name, grade]
+      properties:
+        site_id:
+          type: integer
+          example: 1
+        name:
+          type: string
+          example: La Grande Voie du Verdon
+        grade:
+          type: string
+          example: 6b+
+        style:
+          type: string
+          enum: [Voie, Boulder, Trad]
+          example: Voie
+        description:
+          type: string
+        video_url:
+          type: string
+
+    # ── Logbook ──
+    LogbookEntry:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        date:
+          type: string
+          format: date
+          example: "2026-03-25"
+        feeling:
+          type: integer
+          minimum: 1
+          maximum: 5
+          nullable: true
+          example: 4
+        comment:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        route_id:
+          type: integer
+          example: 2
+        route_name:
+          type: string
+          example: La Grande Voie du Verdon
+        grade:
+          type: string
+          example: 6b+
+        style:
+          type: string
+          nullable: true
+        site_id:
+          type: integer
+          example: 1
+        site_name:
+          type: string
+          example: Gorges du Verdon
+        site_type:
+          type: string
+          example: Falaise
+
+    LogbookCreateRequest:
+      type: object
+      required: [route_id, date]
+      properties:
+        route_id:
+          type: integer
+          example: 2
+        date:
+          type: string
+          format: date
+          example: "2026-03-25"
+        feeling:
+          type: integer
+          minimum: 1
+          maximum: 5
+          example: 4
+        comment:
+          type: string
+          example: Belle ascension, beau temps.
+
+    LogbookUpdateRequest:
+      type: object
+      properties:
+        date:
+          type: string
+          format: date
+        feeling:
+          type: integer
+          minimum: 1
+          maximum: 5
+        comment:
+          type: string
+
+    # ── Stats ──
+    Stats:
+      type: object
+      properties:
+        monthly:
+          type: array
+          items:
+            type: object
+            properties:
+              month:
+                type: string
+                example: "2026-03"
+              count:
+                type: integer
+                example: 5
+        grades:
+          type: array
+          items:
+            type: object
+            properties:
+              grade:
+                type: string
+                example: 6b+
+              count:
+                type: integer
+                example: 3
+        total:
+          type: integer
+          example: 12
+        hardest_grade:
+          type: string
+          nullable: true
+          example: 7a
+        favorite_site:
+          type: string
+          nullable: true
+          example: Gorges du Verdon
+
+    # ── Errors ──
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+          example: Invalid credentials
+
+    Success:
+      type: object
+      properties:
+        message:
+          type: string
+          example: Site deleted successfully
+
+# ─────────────────────────────────────────────
+# PATHS
+# ─────────────────────────────────────────────
+paths:
+
+  # ── HEALTH ──────────────────────────────────
+  /health:
+    get:
+      tags: [Health]
+      summary: Vérifier que le serveur tourne
+      responses:
+        "200":
+          description: Serveur opérationnel
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+                  timestamp:
+                    type: string
+                    format: date-time
+
+  # ── AUTH ─────────────────────────────────────
+  /auth/register:
+    post:
+      tags: [Auth]
+      summary: Créer un compte
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        "201":
+          description: Compte créé — retourne token + user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        "400":
+          description: Champs manquants ou mot de passe trop court
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "409":
+          description: Username ou email déjà utilisé
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Se connecter (Passport LocalStrategy)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        "200":
+          description: Connexion réussie — retourne token + user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        "401":
+          description: Identifiants invalides
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /auth/me:
+    get:
+      tags: [Auth]
+      summary: Récupérer l'utilisateur connecté
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Profil de l'utilisateur courant
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        "401":
+          description: Token manquant ou invalide
+        "404":
+          description: Utilisateur introuvable
+
+  # ── SITES ────────────────────────────────────
+  /sites:
+    get:
+      tags: [Sites]
+      summary: Lister tous les sites (public)
+      description: Retourne la liste avec `route_count` mais sans `climbing_routes`.
+      responses:
+        "200":
+          description: Liste des sites
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Site'
+
+    post:
+      tags: [Sites]
+      summary: Créer un site (expert/admin)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SiteCreateRequest'
+      responses:
+        "201":
+          description: Site créé
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Site'
+        "400":
+          description: Champs requis manquants
+        "401":
+          description: Non authentifié
+        "403":
+          description: Rôle insuffisant (minimum expert)
+
+  /sites/{id}:
+    get:
+      tags: [Sites]
+      summary: Détail d'un site avec ses voies (public)
+      description: Retourne le site avec `climbing_routes` inclus (sans `route_count`).
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Site trouvé
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Site'
+        "404":
+          description: Site introuvable
+
+    put:
+      tags: [Sites]
+      summary: Modifier un site (expert/admin)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SiteCreateRequest'
+      responses:
+        "200":
+          description: Site mis à jour
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Site'
+        "401":
+          description: Non authentifié
+        "403":
+          description: Rôle insuffisant
+        "404":
+          description: Site introuvable
+
+    delete:
+      tags: [Sites]
+      summary: Supprimer un site (admin uniquement)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Site supprimé
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Success'
+        "401":
+          description: Non authentifié
+        "403":
+          description: Rôle insuffisant (minimum admin)
+        "404":
+          description: Site introuvable
+
+  # ── CLIMBING ROUTES ───────────────────────────
+  /climbing-routes/site/{siteId}:
+    get:
+      tags: [Routes]
+      summary: Voies d'un site (public)
+      parameters:
+        - name: siteId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Liste des voies du site
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ClimbingRoute'
+
+  /climbing-routes:
+    post:
+      tags: [Routes]
+      summary: Créer une voie (expert/admin)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ClimbingRouteCreateRequest'
+      responses:
+        "201":
+          description: Voie créée
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClimbingRoute'
+        "400":
+          description: site_id, name ou grade manquant
+        "401":
+          description: Non authentifié
+        "403":
+          description: Rôle insuffisant
+
+  /climbing-routes/{id}:
+    put:
+      tags: [Routes]
+      summary: Modifier une voie (expert/admin)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                grade:
+                  type: string
+                style:
+                  type: string
+                  enum: [Voie, Boulder, Trad]
+                description:
+                  type: string
+                video_url:
+                  type: string
+      responses:
+        "200":
+          description: Voie mise à jour
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClimbingRoute'
+        "401":
+          description: Non authentifié
+        "403":
+          description: Rôle insuffisant
+        "404":
+          description: Voie introuvable
+
+    delete:
+      tags: [Routes]
+      summary: Supprimer une voie (admin uniquement)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Voie supprimée
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Success'
+        "401":
+          description: Non authentifié
+        "403":
+          description: Rôle insuffisant
+        "404":
+          description: Voie introuvable
+
+  # ── LOGBOOK ───────────────────────────────────
+  /logbook:
+    get:
+      tags: [Logbook]
+      summary: Mes ascensions (auth)
+      description: Retourne toutes les entrées du carnet de l'utilisateur connecté, triées par date décroissante.
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Liste des ascensions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/LogbookEntry'
+        "401":
+          description: Non authentifié
+
+    post:
+      tags: [Logbook]
+      summary: Ajouter une ascension (auth)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LogbookCreateRequest'
+      responses:
+        "201":
+          description: Ascension enregistrée
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LogbookEntry'
+        "400":
+          description: route_id ou date manquant
+        "401":
+          description: Non authentifié
+
+  /logbook/stats:
+    get:
+      tags: [Logbook]
+      summary: Statistiques personnelles (auth)
+      description: >
+        Retourne les statistiques de l'utilisateur connecté :
+        ascensions par mois (12 derniers mois), répartition par cotation,
+        total, cotation la plus difficile et site favori.
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Statistiques calculées
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Stats'
+        "401":
+          description: Non authentifié
+
+  /logbook/{id}:
+    put:
+      tags: [Logbook]
+      summary: Modifier une entrée (auth, propriétaire uniquement)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LogbookUpdateRequest'
+      responses:
+        "200":
+          description: Entrée mise à jour
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LogbookEntry'
+        "401":
+          description: Non authentifié
+        "403":
+          description: Vous ne pouvez modifier que vos propres entrées
+        "404":
+          description: Entrée introuvable
+
+    delete:
+      tags: [Logbook]
+      summary: Supprimer une entrée (auth, propriétaire uniquement)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Entrée supprimée
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Success'
+        "401":
+          description: Non authentifié
+        "403":
+          description: Vous ne pouvez supprimer que vos propres entrées
+        "404":
+          description: Entrée introuvable
