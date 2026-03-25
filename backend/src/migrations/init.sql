@@ -47,7 +47,7 @@ CREATE TABLE IF NOT EXISTS logbook (
 
 -- Admin user (password: admin123)
 INSERT INTO users (username, email, password_hash, role) VALUES
-  ('admin', 'admin@verticallog.fr', '$2b$10$5jc3AGfVWqN56OOGyb3dBOyCZDw5FaoRBb7PHRalP2Kk0gHHfu4I2', 'admin')
+  ('admin', 'admin@verticallog.fr', '$2b$10$PjEObkDVkfPAR/tux3FbR.dzfz23LToUtnhBkvLBDTaBvmBLr/roe', 'admin')
 ON CONFLICT (username) DO NOTHING;
 
 -- Sample sites

@@ -1,8 +1,19 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
+import 'leaflet/dist/leaflet.css';
+import L from 'leaflet';
 import { getSites, createSite, updateSite, deleteSite } from '../api';
 import { useAuth } from '../context/AuthContext';
 import type { Site } from '../types';
+
+// Fix default marker icons (Leaflet + bundlers)
+delete (L.Icon.Default.prototype as unknown as Record<string, unknown>)._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
+  iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+  shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+});
 
 const TYPE_COLORS: Record<string, string> = {
   Falaise: 'badge-falaise',
@@ -26,6 +37,7 @@ export default function Sites() {
   const [formLoading, setFormLoading] = useState(false);
   const [formError, setFormError] = useState('');
 
+  const [viewMode, setViewMode] = useState<'list' | 'map'>('list');
   const canManage = user?.role === 'expert' || user?.role === 'admin';
   const canDelete = user?.role === 'admin';
 
@@ -160,15 +172,67 @@ export default function Sites() {
         </div>
       </div>
 
-      {/* Results count */}
+      {/* Results count + view toggle */}
       {!loading && (
-        <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: 20 }}>
-          {filtered.length} site{filtered.length !== 1 ? 's' : ''} trouvé{filtered.length !== 1 ? 's' : ''}
-        </p>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>
+            {filtered.length} site{filtered.length !== 1 ? 's' : ''} trouvé{filtered.length !== 1 ? 's' : ''}
+          </p>
+          <div style={{ display: 'flex', gap: 4, background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 8, padding: 4 }}>
+            {(['list', 'map'] as const).map((mode) => (
+              <button
+                key={mode}
+                onClick={() => setViewMode(mode)}
+                style={{
+                  padding: '6px 14px',
+                  borderRadius: 6,
+                  border: 'none',
+                  cursor: 'pointer',
+                  fontSize: '0.85rem',
+                  fontWeight: 600,
+                  background: viewMode === mode ? 'var(--accent)' : 'transparent',
+                  color: viewMode === mode ? '#fff' : 'var(--text-muted)',
+                  transition: 'all 0.15s',
+                }}
+              >
+                {mode === 'list' ? '▤ Liste' : '🗺 Carte'}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Map view */}
+      {!loading && viewMode === 'map' && (
+        <div style={{ borderRadius: 'var(--radius)', overflow: 'hidden', border: '1px solid var(--border)', marginBottom: 32, height: 480 }}>
+          <MapContainer
+            center={[46.5, 2.5]}
+            zoom={5}
+            style={{ height: '100%', width: '100%' }}
+          >
+            <TileLayer
+              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+            />
+            {filtered.filter((s) => s.latitude && s.longitude).map((site) => (
+              <Marker key={site.id} position={[site.latitude!, site.longitude!]}>
+                <Popup>
+                  <div style={{ minWidth: 160 }}>
+                    <strong>{site.name}</strong><br />
+                    <span style={{ fontSize: '0.8rem', color: '#666' }}>{site.type} · {site.location}</span><br />
+                    <a href={`/sites/${site.id}`} style={{ fontSize: '0.85rem', color: '#e94560', fontWeight: 600 }}>
+                      Voir le topo →
+                    </a>
+                  </div>
+                </Popup>
+              </Marker>
+            ))}
+          </MapContainer>
+        </div>
       )}
 
       {/* Grid */}
-      {loading ? (
+      {viewMode === 'list' && (loading ? (
         <div className="spinner" />
       ) : filtered.length === 0 ? (
         <div className="empty-state">
@@ -289,7 +353,7 @@ export default function Sites() {
             </Link>
           ))}
         </div>
-      )}
+      ))}
       {/* Create / Edit site modal */}
       {modalOpen && (
         <div className="modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) setModalOpen(false); }}>

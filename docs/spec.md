@@ -16,7 +16,9 @@
 | Frontend — carnet utilisateur | Complet |
 | Frontend — gestion sites/voies (expert/admin) | Complet |
 | OpenAPI spec | Complet |
-| Release avancée 1 — carte interactive | A faire |
+| React 19 | Complet |
+| Carte interactive Leaflet | Complet |
+| Swagger UI intégré (`/api/docs`) | Complet |
 | Release avancée 2 — commentaires, export | A faire |
 
 ---
@@ -176,32 +178,35 @@ Appel API `GET /api/climbing-routes/site/:id` déclenché à chaque sélection d
 
 ---
 
-### React 19
+### React 19 + Carte interactive + Swagger UI
 
-**Contexte :** Contrat projet indiquait React 19.
+**Contexte :** Mise à jour vers React 19, ajout de la carte interactive (Release avancée 1), documentation API interactive.
 
 **Implémenté :**
-- `frontend/package.json` : `react` et `react-dom` passés à `^19.0.0`
-- `@types/react` et `@types/react-dom` passés à `^19.0.0`
-
-**A faire :** lancer `npm install` dans `/frontend` pour installer les nouvelles versions.
+- `frontend/package.json` : `react`, `react-dom`, `@types/react`, `@types/react-dom` passés à `^19.0.0`, installés (`npm install`)
+- **Carte interactive** dans `frontend/src/pages/Sites.tsx` :
+  - Lib : `leaflet` + `react-leaflet` + `@types/leaflet`
+  - Toggle "Liste / Carte" dans la barre de résultats
+  - `MapContainer` centré sur la France, zoom 5
+  - `Marker` pour chaque site ayant `latitude` et `longitude`
+  - `Popup` au clic : nom, type, localisation, lien "Voir le topo →"
+  - Fix icônes Leaflet pour bundlers (overwrite `_getIconUrl`)
+- **Swagger UI** dans `backend/src/index.ts` :
+  - Lib : `swagger-ui-express` + `js-yaml`
+  - Charge `docs/openapi.yaml` au démarrage
+  - UI disponible à `http://localhost:3001/api/docs`
 
 ---
 
 ## Prochaines étapes à implémenter
 
-### Release avancée 1
+---
 
-#### Carte interactive des sites
-- **Lib :** Leaflet + `react-leaflet`
-- **Données :** `latitude` et `longitude` déjà présents dans le modèle `Site`
-- **UI :** nouvelle page ou section dans `Sites.tsx` avec toggle carte/liste
-- **Marqueurs :** clic sur un marqueur → lien vers `SiteDetail`
+### Release avancée 1 — filtrage avancé
 
-#### Filtrage avancé des sites
-- Filtre par type déjà présent — étendre avec :
-  - Recherche par département/région
-  - Filtre par cotation min/max des voies du site
+#### Filtrage avancé des sites (partiel)
+- Filtre par type déjà présent
+- A ajouter : filtre par cotation min/max des voies du site
 
 ---
 
@@ -228,7 +233,7 @@ Appel API `GET /api/climbing-routes/site/:id` déclenché à chaque sélection d
 
 | Tâche | Priorité | Détail |
 |---|---|---|
-| `npm install` React 19 | Haute | Appliquer la mise à jour `package.json` |
+| `npm install` React 19 | ~~Haute~~ | ✅ Fait |
 | Variables d'environnement | Moyenne | Renforcer `JWT_SECRET` en production |
 | Pagination logbook | Basse | `GET /api/logbook?page=1&limit=20` |
 | Refresh token | Basse | Éviter la déconnexion après 7 jours |
@@ -285,4 +290,4 @@ docs/
 
 ---
 
-*Dernière mise à jour : 2026-03-25*
+*Dernière mise à jour : 2026-03-25 — React 19 + Carte Leaflet + Swagger UI*

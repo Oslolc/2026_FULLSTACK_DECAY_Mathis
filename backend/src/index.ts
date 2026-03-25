@@ -2,6 +2,10 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import passport from 'passport';
+import swaggerUi from 'swagger-ui-express';
+import yaml from 'js-yaml';
+import fs from 'fs';
+import path from 'path';
 import './config/passport';
 dotenv.config();
 
@@ -24,6 +28,13 @@ app.use('/api/logbook', logbookRouter);
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
+
+// Swagger UI — /api/docs
+const openapiPath = path.join(__dirname, '../../docs/openapi.yaml');
+if (fs.existsSync(openapiPath)) {
+  const swaggerDoc = yaml.load(fs.readFileSync(openapiPath, 'utf8')) as object;
+  app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerDoc));
+}
 
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));

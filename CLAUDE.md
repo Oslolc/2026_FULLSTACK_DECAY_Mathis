@@ -33,7 +33,7 @@ No test suite exists.
 
 ### Stack
 - **Backend:** Node.js + Express + TypeScript, `pg` for raw SQL queries, `bcrypt` + JWT auth
-- **Frontend:** React 18 + TypeScript + Vite, React Router v6, Axios, Chart.js
+- **Frontend:** React 19 + TypeScript + Vite, React Router v6, Axios, Chart.js
 - **DB:** PostgreSQL 16 (Docker), schema in `backend/src/migrations/init.sql`
 
 ### Auth Flow
