@@ -16,12 +16,24 @@ import type { LogbookEntry, Stats, Site, ClimbingRoute } from '../types';
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, ArcElement, Title, Tooltip, Legend);
 
+function gradeToNumber(grade: string): number {
+  const base = parseFloat(grade);
+  const letter = grade.match(/[abc]/i)?.[0]?.toLowerCase() ?? 'a';
+  const plus = grade.includes('+') ? 0.15 : 0;
+  const letterVal = letter === 'a' ? 0 : letter === 'b' ? 0.33 : 0.66;
+  return base + letterVal + plus;
+}
+
 function getGradeColor(grade: string): string {
-  const num = parseFloat(grade.replace(/[abc+]/gi, ''));
-  if (num < 6) return '#22c55e';
-  if (num < 7) return '#eab308';
-  if (num < 8) return '#f97316';
-  return '#ef4444';
+  const MIN = 4.0;
+  const MAX = 9.5;
+  const val = Math.min(Math.max(gradeToNumber(grade), MIN), MAX);
+  const t = (val - MIN) / (MAX - MIN);
+  // hue: 130 (green) → 60 (yellow) → 0 (red)
+  const hue = Math.round(130 - t * 130);
+  const sat = 80 + Math.round(t * 15);
+  const light = 52 - Math.round(t * 10);
+  return `hsl(${hue}, ${sat}%, ${light}%)`;
 }
 
 export default function Logbook() {
